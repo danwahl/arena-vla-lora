@@ -21,6 +21,7 @@ LeRobot train script is monkey-patched because LeRobot CLI doesn't expose `--pef
 
 ```bash
 LORA_ALPHA=128 SHAPE_SAFE_LOAD=1 \
+LORA_MODULES_TO_SAVE=state_proj,action_in_proj,action_out_proj \
 python scripts/lerobot_train_with_alpha.py \
     --policy.path=lerobot/smolvla_base \
     --policy.push_to_hub=false \

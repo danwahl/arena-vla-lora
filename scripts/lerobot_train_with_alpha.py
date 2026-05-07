@@ -5,9 +5,17 @@ Upstream PEFT defaults lora_alpha=8, so --peft.r=64 silently lands on scale=alph
 which is far too weak. This wrapper monkey-patches the policy's `_get_default_peft_targets()`
 to inject lora_alpha (and optionally lora_dropout) before the train script runs.
 
-Use exactly like `lerobot-train`, with two extra environment variables:
-    LORA_ALPHA       — int (required for the patch to engage)
-    LORA_DROPOUT     — float (optional, default unchanged)
+Use exactly like `lerobot-train`, with three extra environment variables:
+    LORA_ALPHA            — int (required for the patch to engage)
+    LORA_DROPOUT          — float (optional, default unchanged)
+    LORA_MODULES_TO_SAVE  — comma-separated module names to fully fine-tune AND
+                            save as full weights alongside the LoRA adapter
+                            (instead of LoRA-wrapping). Use this for layers
+                            that get re-shaped past the pretrained checkpoint
+                            (e.g. state_proj/action_in_proj/action_out_proj
+                            when bumping max_state_dim/max_action_dim) — those
+                            otherwise stay at random init at inference time
+                            because the resized base weights are never saved.
 
 Example:
     LORA_ALPHA=64 python scripts/lerobot_train_with_alpha.py \
@@ -33,6 +41,12 @@ def _engage_alpha_patch():
     alpha = int(alpha)
     dropout = os.environ.get("LORA_DROPOUT")
     dropout = float(dropout) if dropout is not None else None
+    modules_to_save_env = os.environ.get("LORA_MODULES_TO_SAVE")
+    modules_to_save = (
+        [m.strip() for m in modules_to_save_env.split(",") if m.strip()]
+        if modules_to_save_env
+        else None
+    )
 
     from lerobot.policies.pi0.modeling_pi0 import PI0Policy
     from lerobot.policies.pi05.modeling_pi05 import PI05Policy
@@ -46,14 +60,17 @@ def _engage_alpha_patch():
             cfg["lora_alpha"] = alpha
             if dropout is not None:
                 cfg["lora_dropout"] = dropout
+            if modules_to_save is not None:
+                cfg["modules_to_save"] = modules_to_save
             return cfg
 
         cls._get_default_peft_targets = patched
-        print(
-            f"[wrap] patched {cls.__name__}._get_default_peft_targets — "
-            f"lora_alpha={alpha}" + (f", lora_dropout={dropout}" if dropout is not None else ""),
-            file=sys.stderr,
-        )
+        msg = f"[wrap] patched {cls.__name__}._get_default_peft_targets — lora_alpha={alpha}"
+        if dropout is not None:
+            msg += f", lora_dropout={dropout}"
+        if modules_to_save is not None:
+            msg += f", modules_to_save={modules_to_save}"
+        print(msg, file=sys.stderr)
 
     for cls in (SmolVLAPolicy, PI05Policy, PI0Policy):
         _patch(cls)
