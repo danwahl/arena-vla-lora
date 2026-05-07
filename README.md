@@ -35,3 +35,29 @@ python scripts/lerobot_train_with_alpha.py \
     --output_dir=outputs/train/smolvla_microwave_lora \
     --wandb.enable=true --wandb.project=arena-vla-lora
 ```
+
+## Eval
+
+Closed-loop eval runs inside the IsaacLab-Arena container, driven by Arena's `policy_runner.py` with our `SmolVLALeRobotPolicy` adapter. Build the install directory once before the first eval:
+
+```bash
+bash scripts/build_install.sh
+```
+
+Then run eval against your trained checkpoint:
+
+```bash
+bash scripts/run_smolvla_arena_eval.sh \
+    gr1_open_microwave \
+    outputs/train/smolvla_microwave_lora/checkpoints/last/pretrained_model \
+    100 1 gr1_pink episodes
+```
+
+You can run NVIDIA's published full-fine-tune through the same driver as a baseline:
+
+```bash
+bash scripts/run_smolvla_arena_eval.sh \
+    gr1_open_microwave \
+    nvidia/smolvla-arena-gr1-microwave \
+    100 1 gr1_pink episodes
+```
